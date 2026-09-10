@@ -48,8 +48,7 @@ Then open `http://127.0.0.1:8000` in a browser (not the `index.html` file direct
 
 ## Deployment
 
-Three low-cost deployment walkthroughs are included, depending on how you want to trade off cost, complexity, and cold-start delay:
+Two low-cost deployment walkthroughs are included, depending on how you want to trade off cost, complexity, and cold-start delay:
 
 - [`DEPLOYMENT.md`](DEPLOYMENT.md) — AWS EC2, an always-on small Graviton instance running as a systemd service. Simplest mental model, predictable ~$17/month (or under $1/month if you stop it between demos).
-- [`DEPLOYMENT-LAMBDA.md`](DEPLOYMENT-LAMBDA.md) — AWS Lambda container image + Lambda Web Adapter. Scales to zero, realistically $0/month at demo volume, at the cost of ~10-20s cold starts.
 - [`DEPLOYMENT-CLOUDRUN.md`](DEPLOYMENT-CLOUDRUN.md) — Google Cloud Run. Also scale-to-zero and realistically $0/month, with simpler container tooling than Lambda, at the cost of a second cloud account and storing AWS credentials as a secret instead of using an instance role.
