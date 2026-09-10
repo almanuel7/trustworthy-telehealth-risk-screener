@@ -4,6 +4,8 @@ A capstone project (DTSC 691) demonstrating an AI-assisted clinical decision-sup
 
 **Disclaimer:** This is an academic demo built on synthetic, scripted session audio (see `data/`) generated from public research datasets. It is not a validated clinical tool and must not be used to make real patient-care decisions.
 
+**Demo mode - sample files only.** Because every analysis request costs real money (S3, Transcribe, Bedrock), the public demo only accepts 5 pre-approved sample recordings, enforced server-side by SHA-256 hash (not filename). Download them from [`data/processed/Finalized Voice Outputs`](data/processed/Finalized%20Voice%20Outputs) and upload one of those in the app. Uploading anything else returns an error instead of touching AWS. See `ALLOWED_SAMPLE_HASHES` in `app.py` if you want to add your own approved files to this allowlist.
+
 ## How it works
 
 1. A therapist/clinician uploads a session audio file (`.wav`) and basic visit info through the web UI (`index.html`).

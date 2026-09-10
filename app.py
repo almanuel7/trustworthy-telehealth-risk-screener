@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import FileResponse
 import uvicorn
-import shutil
+import hashlib
 import boto3
 import json
 import time
@@ -15,6 +15,21 @@ from transformers import pipeline
 MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-6")
 S3_BUCKET = os.environ.get("S3_BUCKET", "telehealth-capstone-data-alm")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+
+# --- BILLING-SPIKE GUARD: sample-file allowlist ---
+# This is a public demo backed by billable AWS services (S3, Transcribe, Bedrock).
+# To keep costs bounded, only these 5 pre-approved sample recordings may be
+# analyzed here. Enforced by SHA-256 hash rather than filename, since a filename
+# alone is trivial to spoof. Get the originals from:
+# https://github.com/almanuel7/trustworthy-telehealth-risk-screener/tree/main/data/processed/Finalized%20Voice%20Outputs
+ALLOWED_SAMPLE_HASHES = {
+    "f21fbe9d70875bc97230dab535b44b180053abc1f1acc2a34306bc0f12eda716": "Script14.wav",
+    "cc0abcbfb3d5899c35c0bb353a0a07d9157cb74a22590c571eea99f96e25ee49": "Script15.wav",
+    "57aa72c9a580179ae03af40c49e4bebdcc5d48899a4779bb4584d0c472e0307f": "Script26.wav",
+    "3ade7c061e1f7b91dc27763a3cdf8c254222a057c2a6d0dc2d0a6abb0c9bb5f9": "Script29.wav",
+    "a586341f1f8ee24a4740c7a0a08ea3da7ada4b3815a375836c88f33a02b275b6": "Script37.wav"
+}
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10MB - comfortably above the largest sample (~4.5MB)
 
 s3_client = boto3.client("s3", region_name=AWS_REGION)
 transcribe_client = boto3.client("transcribe", region_name=AWS_REGION)
@@ -212,6 +227,24 @@ def invoke_bedrock(formatted_text):
             "visit_trend": [], "detected_triggers": []
         }
 
+def stream_to_disk_with_hash(upload_file, dest_path, max_bytes):
+    # Streams an UploadFile to disk in fixed-size chunks while computing its
+    # SHA-256 hash, aborting as soon as max_bytes is exceeded so a bogus giant
+    # upload can't sit on disk (or run up the bill) before being rejected.
+    hasher = hashlib.sha256()
+    total = 0
+    with open(dest_path, "wb") as buffer:
+        while True:
+            chunk = upload_file.file.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise ValueError(f"Upload exceeds the {max_bytes // (1024 * 1024)}MB limit for this demo.")
+            hasher.update(chunk)
+            buffer.write(chunk)
+    return hasher.hexdigest()
+
 # --- 4. FASTAPI ENDPOINTS ---
 
 @app.get("/")
@@ -228,11 +261,21 @@ async def analyze_visit(
     
     file_id = f"{uuid.uuid4().hex[:8]}-{int(time.time())}"
     temp_file_path = f"temp_{file_id}.wav"
-    
-    with open(temp_file_path, "wb") as buffer:
-        shutil.copyfileobj(audio_file.file, buffer)
-        
+
     try:
+        # Stream the upload to disk while hashing it, before touching any billable AWS service.
+        file_hash = stream_to_disk_with_hash(audio_file, temp_file_path, MAX_UPLOAD_BYTES)
+        sample_name = ALLOWED_SAMPLE_HASHES.get(file_hash)
+        if sample_name is None:
+            print(f"Rejected upload '{audio_file.filename}': not one of the approved sample files.")
+            return {
+                "error": (
+                    "This demo only accepts the pre-approved sample recordings, to keep AWS "
+                    "usage bounded. Download one from the sample files link and try again."
+                )
+            }
+        print(f"Verified sample file: {sample_name}")
+
         print("Uploading to S3...")
         s3_uri = upload_to_s3(temp_file_path, S3_BUCKET, f"uploads/{file_id}.wav")
         if not s3_uri:

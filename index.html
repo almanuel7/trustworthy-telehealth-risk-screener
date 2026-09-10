@@ -160,11 +160,19 @@
                     
                     <div class="mt-6">
                         <label class="font-bold text-lg block mb-2">UPLOAD MEDIA FILE:</label>
-                        <input type="file" id="audio-upload" accept=".wav" class="hidden" onchange="document.getElementById('file-name-display').innerText = this.files[0]?.name || 'Drag and Drop Audio File'">
+                        <input type="file" id="audio-upload" accept=".wav" class="hidden" onchange="app.handleFileSelect(this)">
                         
                         <div onclick="document.getElementById('audio-upload').click()" class="bg-white rounded-3xl py-6 px-10 border-2 border-dashed border-gray-400 text-center cursor-pointer hover:bg-gray-50 transition">
                             <div class="text-5xl mb-2 text-appgray">☁️</div>
                             <p id="file-name-display" class="font-bold tracking-widest uppercase text-sm">Drag and Drop Audio File</p>
+                        </div>
+
+                        <div class="mt-3 bg-yellow-50 border border-yellow-300 rounded-xl px-4 py-3 text-xs font-sans text-gray-700 leading-relaxed">
+                            <p class="font-bold uppercase tracking-wider text-yellow-800 mb-1">Demo Mode — Sample Files Only</p>
+                            <p>To keep this public demo's AWS usage bounded, it only accepts the 5 pre-approved sample recordings. Download them from
+                                <a href="https://github.com/almanuel7/trustworthy-telehealth-risk-screener/tree/main/data/processed/Finalized%20Voice%20Outputs" target="_blank" rel="noopener noreferrer" class="underline font-bold hover:text-yellow-900">the sample files folder on GitHub</a>
+                                and upload one of them here.
+                            </p>
                         </div>
                         
                         <div class="mt-6 text-center">
@@ -312,12 +320,17 @@
     </div>
 
     <script>
+        // Billing-spike guard: this public demo only accepts these 5 pre-approved
+        // sample recordings. This client-side check is just fast UX feedback -- the
+        // real enforcement (by file hash, not name) happens in app.py.
+        const ALLOWED_SAMPLE_FILES = ["Script14.wav", "Script15.wav", "Script26.wav", "Script29.wav", "Script37.wav"];
+
         const app = {
             state: {
                 selectedPatientIndex: null,
                 patients: [
                     {
-                        episode: "O1115", priority: 1, name: "JANICE BLOOMBERG", date: "2026-04-24",
+                        episode: "O1115", priority: 1, name: "JANICE BLOOMBERG", date: "04-24-2026",
                         max_risk_score: 0.95, ai_confidence: 0.88, outcome: "Imminent", acknowledged: false,
                         step_by_step_logic: "1. Hopelessness Detected: Patient stated 'no way out'. 2. Intent: Explicit plan discussed. 3. Capability: Means are readily available and secured by patient prior to the call.",
                         visit_trend: [
@@ -330,7 +343,7 @@
                         ]
                     },
                     {
-                        episode: "O1116", priority: 2, name: "RAYMOND RAY", date: "2026-04-24",
+                        episode: "O1116", priority: 2, name: "RAYMOND RAY", date: "04-24-2026",
                         max_risk_score: 0.34, ai_confidence: 0.95, outcome: "Low", acknowledged: false,
                         step_by_step_logic: "1. Stable baseline: Patient discussed future plans and engagements. 2. No indicators of IPTS risk constructs detected during session.",
                         visit_trend: [
@@ -458,6 +471,26 @@
                 setTimeout(() => { drawD3DetailsChart('#d3-details-chart', p.visit_trend); }, 50);
             },
 
+            handleFileSelect(input) {
+                const display = document.getElementById('file-name-display');
+                const file = input.files[0];
+                if (!file) {
+                    display.innerText = 'Drag and Drop Audio File';
+                    return;
+                }
+                if (!ALLOWED_SAMPLE_FILES.includes(file.name)) {
+                    alert(
+                        "This demo only accepts the pre-approved sample recordings (to keep AWS usage bounded):\n\n" +
+                        ALLOWED_SAMPLE_FILES.join(", ") +
+                        "\n\nDownload them from the sample files link in this dialog."
+                    );
+                    input.value = "";
+                    display.innerText = 'Drag and Drop Audio File';
+                    return;
+                }
+                display.innerText = file.name;
+            },
+
             async simulateAIPipeline() {
                 const name = document.getElementById('new-patient-name').value || "NEW_PT_001";
                 const date = document.getElementById('new-visit-date').value || "04-28-2026";
@@ -470,6 +503,11 @@
                 }
 
                 const audioFile = audioInput.files[0];
+
+                if (!ALLOWED_SAMPLE_FILES.includes(audioFile.name)) {
+                    alert("This demo only accepts the pre-approved sample recordings: " + ALLOWED_SAMPLE_FILES.join(", "));
+                    return;
+                }
                 
                 btn.innerText = "PROCESSING VIA AWS...";
                 btn.classList.replace('bg-appgray', 'bg-yellow-500');

@@ -1,12 +1,16 @@
 # Deploying to Google Cloud Run
 
-**Deployment strategy: Google Cloud Run, container, scale-to-zero.** Other strategies: [`DEPLOYMENT.md`](DEPLOYMENT.md) (EC2, always-on VM) | [`DEPLOYMENT-LAMBDA.md`](DEPLOYMENT-LAMBDA.md) (AWS Lambda container)
+**Deployment strategy: Google Cloud Run, container, scale-to-zero.** Other strategy: [`DEPLOYMENT.md`](DEPLOYMENT.md) (EC2, always-on VM) 
 
 ## Why this one
 
 Cloud Run's always-free monthly allocation is generous — 2 million requests, 240,000 vCPU-seconds, and 450,000 GiB-seconds — and it scales to zero exactly like Lambda, so idle time costs nothing. Unlike the Lambda path, `app.py` runs as a completely ordinary Docker container here: no adapter layer, no read-only filesystem restrictions, just `python3 app.py` inside a normal container image. The trade-off is that this app still needs to call Amazon S3, Transcribe, and Bedrock, and Cloud Run has no equivalent of an EC2/Lambda instance role for AWS — you'll authenticate to AWS with an IAM user's access keys stored as a Cloud Run secret instead. You'll also need a Google Cloud account and project with billing enabled (required to use Cloud Run at all, even fully within the free tier — you won't be charged unless you exceed the free allocation).
 
-The same caveat about `app.py`'s blocking Transcribe polling loop applies here as on Lambda: a long recording holds the container active (and billed) for the whole wait. Fine for occasional demo use; see `DEPLOYMENT-LAMBDA.md` for the full explanation if you want the details.
+There's also an architectural wrinkle specific to this app — see **Important: the Transcribe polling loop** below — read that before you commit to this path. Fine for occasional demo use; see `DEPLOYMENT-LAMBDA.md` for the full explanation if you want the details.
+
+## Important: the Transcribe polling loop
+
+`app.py`'s `get_transcription_result()` blocks in a `while True` loop, sleeping 5 seconds at a time until the Transcribe job finishes. For longer recordings, or if you ever expect real traffic rather than occasional demo use, this polling pattern will burn through the free tier fast and risks timing out entirely — the correct fix would be to make transcription asynchronous (e.g., trigger the analysis from an S3/EventBridge event instead of blocking inside the request), which is a real code change beyond this deployment guide. For a personal demo used occasionally, it's fine as-is; just don't be surprised if a long recording takes a while and costs a bit more than a short one. To account for this, I introduced hashed file restrictions on uploads that will only upload the 5 sample files within this repo. This provides a bit of a guardrail to help ensure that my billing can remain relatively contained. 
 
 ## 1. Enable Bedrock model access (in AWS)
 
@@ -51,6 +55,13 @@ Since Cloud Run can't assume an AWS role, create a dedicated IAM user in AWS con
 Generate an access key for this user (Security credentials tab -> Create access key). Keep the secret key somewhere safe for step 6 — never commit it to the repo.
 
 ## 3. Install and authenticate the gcloud CLI
+Install gcould CLI via homebrew:
+
+```bash
+brew install --cask google-cloud-sdk
+```
+
+Once installed, make sure your Cloud run project is attached to a billing account. Then proceed with running:
 
 ```bash
 gcloud auth login

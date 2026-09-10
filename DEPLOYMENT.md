@@ -1,6 +1,6 @@
 # Deploying to AWS (low-cost EC2)
 
-**Deployment strategy: AWS EC2 (always-on VM).** Other strategies: [`DEPLOYMENT-LAMBDA.md`](DEPLOYMENT-LAMBDA.md) (AWS Lambda container + Web Adapter) | [`DEPLOYMENT-CLOUDRUN.md`](DEPLOYMENT-CLOUDRUN.md) (Google Cloud Run)
+**Deployment strategy: AWS EC2 (always-on VM).** Other low cost strategy: [`DEPLOYMENT-CLOUDRUN.md`](DEPLOYMENT-CLOUDRUN.md) (Google Cloud Run)
 
 This app needs a small always-running server (it keeps a PyTorch sentiment model loaded in memory), so EC2 is a better fit than serverless here. This walkthrough uses the cheapest instance size that reliably avoids out-of-memory crashes, plus a systemd service so it restarts itself if it ever crashes or the instance reboots.
 
