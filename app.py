@@ -36,7 +36,8 @@ transcribe_client = boto3.client("transcribe", region_name=AWS_REGION)
 bedrock_client = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 
 print("Loading RoBERTa Sentiment Model (This may take a moment)...")
-sentiment_analyzer = pipeline("sentiment-analysis", model="cardiffnlp/twitter-roberta-base-sentiment-latest")
+model_path = "/app/sentiment_model" if os.path.exists("/app/sentiment_model") else "cardiffnlp/twitter-roberta-base-sentiment-latest"
+sentiment_analyzer = pipeline("sentiment-analysis", model=model_path, tokenizer=model_path)
 print("Model loaded successfully.")
 
 # Initialize the FastAPI App
